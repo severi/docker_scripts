@@ -1,0 +1,58 @@
+#!/bin/bash
+
+PORT=3000
+IMAGE_NAME=application-image
+CONTAINER_NAME=application
+
+FILES="$(ls -a)"
+updatedFiles=""
+while read -r line; do
+    if [ "$line" != "." ] && [ "$line" != ".." ]
+    then
+        updatedFiles+="-v $PWD/$line:/usr/src/app/$line "
+    fi
+done <<< "$FILES"
+
+DOCKER_CMD="docker run -it --rm -p $PORT:$PORT $updatedFiles --name $CONTAINER_NAME $IMAGE_NAME"
+
+if [ $# = 0 ]
+then
+    echo "----------------------------------------"
+    echo "Opening Terminal in docker container"
+    echo "----------------------------------------"
+    $DOCKER_CMD bash
+    exit 0;
+fi
+
+for var in "$@"
+do
+    if [ "$var" = "install" ]
+    then
+        echo "----------------------------------------"
+        echo "Removing old $IMAGE_NAME-image..."
+        echo "----------------------------------------"
+        docker rmi $IMAGE_NAME
+
+        echo "----------------------------------------"
+        echo "Removing exited containers"
+        echo "----------------------------------------"
+        docker rm -v $(docker ps -a -q -f status=exited)
+
+        echo "----------------------------------------"
+        echo "Removing dangling images.."
+        echo "----------------------------------------"
+        docker rmi $(docker images -f "dangling=true" -q)
+
+        echo "----------------------------------------"
+        echo "Building Docker-image.."
+        echo "----------------------------------------"
+        docker build -t $IMAGE_NAME .
+        exit 0;
+    fi
+done
+
+echo "----------------------------------------"
+echo "Execute npm run $@"
+echo "----------------------------------------"
+$DOCKER_CMD npm run "$@"
+exit 0;

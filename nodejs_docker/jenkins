@@ -1,0 +1,52 @@
+#!/bin/bash
+
+PORT=3000
+IMAGE_NAME=application-image
+CONTAINER_NAME=application
+$URL=www.example.com:$PORT
+
+function check {
+    if curl -sSfk $URL  > /dev/null ; then
+        return 0;
+    else
+        return 1;
+    fi
+}
+function testServerIsRunning {
+    for i in `seq 1 60`;
+    do
+	echo "Checking if server is up. Try $i/60"
+	if check eq 0 ; then
+	    exit 0;
+	fi
+	sleep 2
+    done
+    exit 1;
+}
+docker stop $CONTAINER_NAME
+docker rm $CONTAINER_NAME
+cd /var/lib/jenkins/project_name
+git pull
+
+echo "----------------------------------------"
+echo "Removing old $IMAGE_NAME-image..."
+echo "----------------------------------------"
+docker rmi $IMAGE_NAME
+
+echo "----------------------------------------"
+echo "Removing exited containers"
+echo "----------------------------------------"
+docker rm -v $(docker ps -a -q -f status=exited)
+
+echo "----------------------------------------"
+echo "Removing dangling images.."
+echo "----------------------------------------"
+docker rmi $(docker images -f "dangling=true" -q)
+
+echo "----------------------------------------"
+echo "Building Docker-image.."
+echo "----------------------------------------"
+docker build -t $IMAGE_NAME .
+
+docker run -d -p $PORT:$PORT --name $CONTAINER_NAME $CONTAINER_NAME npm run start
+testServerIsRunning
